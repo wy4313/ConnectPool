@@ -22,6 +22,19 @@ Task* MultiQueue::pop() {
     return m;
 }
 
+Task* MultiQueue::pop(int timeout_ms) {
+    std::unique_lock<std::mutex> lock(mMutex);
+    if(mTaskList.empty()){
+        if(std::cv_status::timeout==
+                mNotEmpty.wait_for(lock, std::chrono::milliseconds(timeout_ms))){
+            return NULL;
+        }
+    }
+    Task* m=mTaskList.front();
+    mTaskList.pop_front();
+    return m;
+}
+
 void MultiQueue::remove(Task *task) {
     std::unique_lock<std::mutex> lock(mMutex);
     mTaskList.remove(task);

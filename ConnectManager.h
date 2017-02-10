@@ -26,6 +26,7 @@ private:
     std::map<int,ThreadJob*> mJobs;
     std::mutex mJobsMutex;
     std::thread* mHandler;
+    bool mExit;
 };
 
 #endif //CONNECTPOOL_MANAGER_H

@@ -41,6 +41,7 @@ void user(ConnectManager* pManager){
 
     std::srand(unsigned(time(0)));
     int num=rand()%6;
+   // int num=0;
     debug("rand num is:%d, usr:%d", num, std::this_thread::get_id());
 
     int taskId=pManager->sendPreLoadRequest(NULL);
@@ -53,14 +54,11 @@ void user(ConnectManager* pManager){
 }
 
 int main(int argc, char *argv[]) {
-    debug("111");
-    error("222");
-    info("333");
     for (int i=0; i < 10; ++i) {
         debug("get id:%d\n", IdCreater::createId());
     }
 
-    multiQueueTest();
+//    multiQueueTest();
 
 
     ConnectManager manager;

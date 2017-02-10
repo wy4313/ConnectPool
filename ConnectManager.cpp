@@ -9,7 +9,7 @@
 #include "ThreadJob.h"
 
 
-class PreLoadJob:ThreadJob{
+class PreLoadJob : ThreadJob {
     typedef enum {
         PRELOAD_JOB_STATUS_DEFAULT=0,
         PRELOAD_JOB_STATUS_CREATING,
@@ -17,42 +17,46 @@ class PreLoadJob:ThreadJob{
         PRELOAD_JOB_STATUS_READING,
         PRELOAD_JOB_STATUS_READLY,
         PRELOAD_JOB_STATUS_PLAYING,
-    }PreLoadJobStatus;
+    } PreLoadJobStatus;
 public:
 
 
-    PreLoadJob(int id):mId(id){}
-    ~PreLoadJob(){
+    PreLoadJob(int id) : mId(id) {}
+
+    ~PreLoadJob() {
         debug("Pre load exit");
 
     };
-    virtual int start(){
+
+    virtual int start() {
         debug("Preload job start\n");
         mIsBusy=true;
         return 0;
     }
-    virtual int stop(){
+
+    virtual int stop() {
         debug("Preload job stop\n");
         mIsBusy=false;
         return 0;
     }
 
-    virtual bool isBusy(){
+    virtual bool isBusy() {
         debug("isBusy :%d\n", mIsBusy);
         return mIsBusy;
     }
-    PreLoadJob::PreLoadJobStatus getStatus(){
+
+    PreLoadJob::PreLoadJobStatus getStatus() {
         std::unique_lock<std::mutex> lock(mMutex);
         return mStatus;
     }
 
-    virtual int cancal(){
+    virtual int cancal() {
         mCancel=true;
         mWaitAction.notify_one();
         return 0;
     }
 
-    int play(){
+    int play() {
         debug("set playing...\n");
         std::unique_lock<std::mutex> lock(mMutex);
         mStatus=PRELOAD_JOB_STATUS_PLAYING;
@@ -61,16 +65,16 @@ public:
         return 0;
     }
 
-    virtual void run(void* args){
+    virtual void run(void *args) {
         //only test code;
-        for(;;) {
+        for (;;) {
 
-            if(mCancel){
+            if (mCancel) {
                 debug("do cancal works\n");
                 break;
             }
 
-            if(mStatus==PRELOAD_JOB_STATUS_DEFAULT) {
+            if (mStatus == PRELOAD_JOB_STATUS_DEFAULT) {
                 changeStatus(PRELOAD_JOB_STATUS_CREATING);
                 debug("do creating works\n");
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -78,23 +82,23 @@ public:
                 //goto next status;
                 changeStatus(PRELOAD_JOB_STATUS_PREPARING);
 
-            } else if(mStatus==PRELOAD_JOB_STATUS_PREPARING){
+            } else if (mStatus == PRELOAD_JOB_STATUS_PREPARING) {
                 debug("do prepareing works\n");
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
                 changeStatus(PRELOAD_JOB_STATUS_READING);
 
-            }else if(mStatus==PRELOAD_JOB_STATUS_READING){
+            } else if (mStatus == PRELOAD_JOB_STATUS_READING) {
                 debug("do Reading works\n");
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
                 changeStatus(PRELOAD_JOB_STATUS_READLY);
-            }else if(mStatus==PRELOAD_JOB_STATUS_READLY) {
+            } else if (mStatus == PRELOAD_JOB_STATUS_READLY) {
                 debug("pre load is readly wait for play or exit\n");
                 std::unique_lock<std::mutex> lock(mMutex);
                 mWaitAction.wait(lock);
 
-            }else if(mStatus==PRELOAD_JOB_STATUS_PLAYING){
+            } else if (mStatus == PRELOAD_JOB_STATUS_PLAYING) {
                 debug("do playing...\n");
                 std::this_thread::sleep_for(std::chrono::seconds(1));
             }
@@ -104,12 +108,14 @@ public:
     int getId() const {
         return mId;
     }
+
 private:
-    void changeStatus(PreLoadJobStatus status){
+    void changeStatus(PreLoadJobStatus status) {
         std::unique_lock<std::mutex> lock(mMutex);
         debug("status change %d -> %d\n", mStatus, status);
         mStatus=status;
     }
+
 private:
     int mId;
     bool mIsBusy;
@@ -121,27 +127,69 @@ private:
 
 
 
-void ConnectManager::requestHandler(MultiQueue* multiQueue){
-    for(;;) {
-        Task *pTask=multiQueue->pop();
-        debug("get task id:%d\n", pTask->getId());
-        std::unique_lock<std::mutex> lock(mJobsMutex);
-        ThreadJob *pTJob=(ThreadJob *) new PreLoadJob(pTask->getId());
-        mJobs[pTask->getId()]=pTJob;
+class RequestTask:public Task{
+public:
+    typedef enum{
+        TASK_TYPE_DEFAULT,
+        TASK_TYPE_PRELOAD,
+        TASK_TYPE_CANCEL,
+        TASK_TYPE_PLAY,
+    }TaskType;
 
-        std::thread t(
-                [this](ThreadJob *job, void *args) { job->run(args); },
-                pTJob,
-                pTask);
-
-        t.detach();
+    RequestTask(int id, RequestTask::TaskType type):
+           mType(type){
+        setId(id);
     }
+    TaskType getType() const {
+        return mType;
+    }
+    void setType(TaskType type) {
+        mType=type;
+    }
+private:
+    RequestTask::TaskType mType;
+};
+
+void ConnectManager::requestHandler(MultiQueue *multiQueue) {
+    for (;false==mExit;) {
+        RequestTask *pTask=(RequestTask*)multiQueue->pop(500);
+        if(pTask==NULL) continue;
+        debug("get task id:%d type:%d\n", pTask->getId(), pTask->getType());
+        if(RequestTask::TASK_TYPE_PRELOAD==pTask->getType()) {
+            ThreadJob *pTJob=NULL;
+            {
+                std::unique_lock<std::mutex> lock(mJobsMutex);
+                pTJob=(ThreadJob *) new PreLoadJob(pTask->getId());
+                mJobs[pTask->getId()]=pTJob;
+            }
+            std::thread t(
+                    [this](ThreadJob *job, void *args) { job->run(args); },
+                    pTJob,
+                    pTask);
+
+            t.detach();
+        }else if(RequestTask::TASK_TYPE_PLAY==pTask->getType()){
+            std::unique_lock<std::mutex> lock(mJobsMutex);
+            PreLoadJob* pPreLoadJob=(PreLoadJob*) mJobs[pTask->getId()];
+            if(pPreLoadJob!=NULL){
+                pPreLoadJob->play();
+            }
+        }else if(RequestTask::TASK_TYPE_CANCEL==pTask->getType()){
+            std::unique_lock<std::mutex> lock(mJobsMutex);
+            PreLoadJob* pPreLoadJob=(PreLoadJob*) mJobs[pTask->getId()];
+            if(pPreLoadJob!=NULL){
+                pPreLoadJob->cancal();
+            }
+        }
+    }
+    debug("pthread exit");
 }
 
 
-int ConnectManager::sendPreLoadRequest(void *args){
-    Task* task=new Task(IdCreater::createId());
-    mRequestions.push(task);
+int ConnectManager::sendPreLoadRequest(void *args) {
+    RequestTask *task=new RequestTask(
+            IdCreater::createId(), RequestTask::TASK_TYPE_PRELOAD);
+    mRequestions.push((Task*)task);
     return task->getId();
 }
 
@@ -149,27 +197,47 @@ int ConnectManager::sendPreLoadRequest(void *args){
 int ConnectManager::sendPlayRequest(int id) {
     //todo
     debug("args id:%d", id);
-    std::unique_lock<std::mutex> lock(mJobsMutex);
-    ((PreLoadJob*)mJobs[id])->play();
+    RequestTask *task=new RequestTask(id, RequestTask::TASK_TYPE_PLAY);
+    mRequestions.push((Task*)task);
     return 0;
+//    std::unique_lock<std::mutex> lock(mJobsMutex);
+//    PreLoadJob *pJob=(PreLoadJob *) mJobs[id];
+//    if (pJob == NULL) {
+//        debug("id is thread is not create...");
+//    } else {
+//        pJob->play();
+//    }
+//    return 0;
 }
 
 int ConnectManager::sendDeleteRequest(int id) {
 //    Task* task=new Task(IdCreater::createId());
 //    mRequestions.push(task);
-    std::unique_lock<std::mutex> lock(mJobsMutex);
-    ((PreLoadJob*)mJobs[id])->cancal();
+    RequestTask *task=new RequestTask(id, RequestTask::TASK_TYPE_CANCEL);
+    mRequestions.push((Task*)task);
     return 0;
+//    std::unique_lock<std::mutex> lock(mJobsMutex);
+//    PreLoadJob *pJob=(PreLoadJob *) mJobs[id];
+//    if (pJob == NULL) {
+//        debug("id is thread is not create...");
+//    } else {
+//        pJob->cancal();
+//    }
+//    return 0;
 }
 
 
-ConnectManager::ConnectManager(){
+ConnectManager::ConnectManager() {
     mHandler=new std::thread(
-            [this](MultiQueue* multiQueue){this->requestHandler(multiQueue);},
+            [this](MultiQueue *multiQueue) { this->requestHandler(multiQueue); },
             &mRequestions);
 }
 
 
-ConnectManager::~ConnectManager(){
-    mHandler->detach();
+ConnectManager::~ConnectManager() {
+    mExit=true;
+    mHandler->join();
+    //mHandler->detach();
+
+    debug("request handler join...");
 }
