@@ -6,10 +6,8 @@
 #define CONNECTPOOL_THREADPOOL_H
 
 
-class ThreadPool {
-public:
-private:
-};
+#include <mutex>
+#include "ThreadJob.h"
 
 
 #endif //CONNECTPOOL_THREADPOOL_H

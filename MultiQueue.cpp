@@ -9,7 +9,7 @@
 int MultiQueue::push(Task *task) {
     std::unique_lock<std::mutex> lock(mMutex);
     mTaskList.push_back(task);
-    mNotEmpty.notify_all();
+    mNotEmpty.notify_one();
 }
 
 Task* MultiQueue::pop() {

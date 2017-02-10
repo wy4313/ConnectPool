@@ -8,12 +8,11 @@
 
 class ThreadJob {
 public:
-    void run(void* args)=0;
+    virtual void run(void* args)=0;
     virtual int start()=0;
     virtual int stop()=0;
 
     virtual bool isBusy()=0;
-    virtual int getStatus()=0;
 
     virtual int cancal()=0;
 };
