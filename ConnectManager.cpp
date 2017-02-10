@@ -6,7 +6,6 @@
 #include "ConnectManager.h"
 #include "Debug.h"
 #include "IdCreater.h"
-#include "ThreadJob.h"
 
 
 class PreLoadJob : ThreadJob {
@@ -200,30 +199,12 @@ int ConnectManager::sendPlayRequest(int id) {
     RequestTask *task=new RequestTask(id, RequestTask::TASK_TYPE_PLAY);
     mRequestions.push((Task*)task);
     return 0;
-//    std::unique_lock<std::mutex> lock(mJobsMutex);
-//    PreLoadJob *pJob=(PreLoadJob *) mJobs[id];
-//    if (pJob == NULL) {
-//        debug("id is thread is not create...");
-//    } else {
-//        pJob->play();
-//    }
-//    return 0;
 }
 
 int ConnectManager::sendDeleteRequest(int id) {
-//    Task* task=new Task(IdCreater::createId());
-//    mRequestions.push(task);
     RequestTask *task=new RequestTask(id, RequestTask::TASK_TYPE_CANCEL);
     mRequestions.push((Task*)task);
     return 0;
-//    std::unique_lock<std::mutex> lock(mJobsMutex);
-//    PreLoadJob *pJob=(PreLoadJob *) mJobs[id];
-//    if (pJob == NULL) {
-//        debug("id is thread is not create...");
-//    } else {
-//        pJob->cancal();
-//    }
-//    return 0;
 }
 
 
@@ -237,7 +218,5 @@ ConnectManager::ConnectManager() {
 ConnectManager::~ConnectManager() {
     mExit=true;
     mHandler->join();
-    //mHandler->detach();
-
     debug("request handler join...");
 }
