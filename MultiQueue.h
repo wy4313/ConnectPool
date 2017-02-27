@@ -4,6 +4,9 @@
 
 #ifndef CONNECTPOOL_MULTIQUEUE_H
 #define CONNECTPOOL_MULTIQUEUE_H
+#include <mutex>
+
+#include <list>
 
 class Task {
 public:
@@ -21,9 +24,6 @@ public:
 private:
     int mId;
 };
-#include <mutex>
-
-#include <list>
 
 class MultiQueue{
 public:

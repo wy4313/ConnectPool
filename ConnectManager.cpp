@@ -1,11 +1,12 @@
 //
 // Created by wangyue20 on 2017/2/9.
 //
-
+#include <iostream>
 #include <thread>
 #include "ConnectManager.h"
 #include "Debug.h"
 #include "IdCreater.h"
+
 
 
 class PreLoadJob : ThreadJob {
@@ -27,8 +28,17 @@ public:
 
     };
 
+    static void bilibili(PreLoadJob* a, void* b){
+        return ;
+    }
+
     virtual int start() {
         debug("Preload job start\n");
+        mThreadBody=std::thread(
+               [this](PreLoadJob* pJob, void* args){pJob->run(args);},
+               this,
+               (void*)NULL);
+        mThreadBody.detach();
         mIsBusy=true;
         return 0;
     }
@@ -122,6 +132,7 @@ private:
     bool mCancel;
     std::mutex mMutex;
     std::condition_variable mWaitAction;
+    std::thread mThreadBody;
 };
 
 
@@ -156,17 +167,11 @@ void ConnectManager::requestHandler(MultiQueue *multiQueue) {
         debug("get task id:%d type:%d\n", pTask->getId(), pTask->getType());
         if(RequestTask::TASK_TYPE_PRELOAD==pTask->getType()) {
             ThreadJob *pTJob=NULL;
-            {
-                std::unique_lock<std::mutex> lock(mJobsMutex);
-                pTJob=(ThreadJob *) new PreLoadJob(pTask->getId());
-                mJobs[pTask->getId()]=pTJob;
-            }
-            std::thread t(
-                    [this](ThreadJob *job, void *args) { job->run(args); },
-                    pTJob,
-                    pTask);
+            std::unique_lock<std::mutex> lock(mJobsMutex);
+            pTJob=(ThreadJob *) new PreLoadJob(pTask->getId());
+            mJobs[pTask->getId()]=pTJob;
+            pTJob->start();
 
-            t.detach();
         }else if(RequestTask::TASK_TYPE_PLAY==pTask->getType()){
             std::unique_lock<std::mutex> lock(mJobsMutex);
             PreLoadJob* pPreLoadJob=(PreLoadJob*) mJobs[pTask->getId()];

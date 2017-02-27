@@ -28,6 +28,17 @@
 *.out
 *.app
 
-
+#clion file
 cmake-build-debug
 .idea
+
+#compiled files
+*.pc
+*.Plo
+*.Po
+*.deps
+*.d
+external/curl/build
+external/libyuv-android-master/obj
+external/fdk-aac-0.1.4/obj
+Makefile.in
